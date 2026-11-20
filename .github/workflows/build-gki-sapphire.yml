@@ -1,0 +1,49 @@
+name: "GKI 5.15 | Sapphire | SukiSU Ultra"
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: Build type
+        type: choice
+        options: [testing, stable]
+        default: testing
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  setup:
+    runs-on: ubuntu-24.04
+    outputs:
+      start_time: ${{ steps.clock.outputs.start_time }}
+    steps:
+      - id: clock
+        shell: bash
+        run: echo "start_time=$(date +%s)" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: setup
+    uses: ./.github/workflows/build-kernel.yml
+    with:
+      variant_name: "GKI-Sapphire-SukiSU-Ultra"
+      source_type: "gki"
+      ksu_type: "suki"
+      zip_prefix: "GKI_Sapphire_SukiSU"
+      artifact_name: "gki-sapphire-sukisu"
+      defconfig: "gki_defconfig"
+      clo_fragment: ""
+      build_type: ${{ inputs.build_type }}
+    secrets: inherit
+
+  release:
+    if: success()
+    needs: [setup, build]
+    uses: ./.github/workflows/release.yml
+    with:
+      zip_mode: "per-variant"
+      build_type: ${{ inputs.build_type }}
+      start_time: ${{ needs.setup.outputs.start_time }}
+      workflow_type: "aio"
+    secrets: inherit

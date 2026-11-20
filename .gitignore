@@ -1,0 +1,7 @@
+out/
+kernel_src/
+prebuilts/
+google-clang/
+ak3_tmp/
+manager_apks/
+*.log
