@@ -52,8 +52,11 @@ cat > "$RELEASE_DIR/build-info.txt" <<EOF
 Device family: Xiaomi Redmi Note 13 4G (sapphire / sapphiren)
 Source: Android common android13-5.15-lts
 Root: SukiSU Ultra
-SUSFS: gki-android13-5.15
-KPM: patch step completed
+SukiSU branch: ${SUKISU_BRANCH:-susfs-main}
+SukiSU source commit: $(git -C "$KERNEL_SRC/drivers/kernelsu" rev-parse --short HEAD 2>/dev/null || echo unknown)
+SUSFS: integrated upstream susfs-* branch (no external patch)
+KPM: official SukiSU KernelPatch patcher
+KPM source commit: $(git -C "${KPM_DIR:-$WORK_DIR/SukiSU_KernelPatch_patch}" rev-parse --short HEAD 2>/dev/null || echo unknown)
 Build type: $BUILD_TYPE
 Kernel version: $KERNEL_VERSION
 Source commit: $(git -C "$KERNEL_SRC" rev-parse --short HEAD)

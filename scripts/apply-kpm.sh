@@ -1,22 +1,25 @@
 #!/usr/bin/env bash
+# Apply the freshly built official SukiSU KernelPatch patcher to Image.
 set -Eeuo pipefail
-
+: "${WORK_DIR:=$(pwd)}"
 IMAGE_PATH="${1:?Usage: apply-kpm.sh /path/to/Image}"
+KPM_DIR="${KPM_DIR:-$WORK_DIR/SukiSU_KernelPatch_patch}"
+PATCHER="$KPM_DIR/patch_linux"
+
 [[ -s "$IMAGE_PATH" ]] || { echo "[ERROR] Kernel Image not found: $IMAGE_PATH" >&2; exit 1; }
+[[ -x "$PATCHER" ]] || { echo "[ERROR] Official patch_linux not built: $PATCHER" >&2; exit 1; }
 
-WORK="$(mktemp -d)"
-cleanup() { rm -rf "$WORK"; }
+TMP="$(mktemp -d)"
+cleanup() { rm -rf "$TMP"; }
 trap cleanup EXIT
-
-curl -fL --retry 3 --retry-delay 2 \
-  https://raw.githubusercontent.com/ShirkNeko/SukiSU_patch/main/kpm/patch_linux \
-  -o "$WORK/patch_linux"
-chmod 0755 "$WORK/patch_linux"
-cp "$IMAGE_PATH" "$WORK/Image"
+cp "$IMAGE_PATH" "$TMP/Image"
 (
-  cd "$WORK"
-  ./patch_linux
+  cd "$TMP"
+  "$PATCHER"
 )
-[[ -s "$WORK/oImage" ]] || { echo "[ERROR] KPM patcher did not produce oImage" >&2; exit 1; }
-mv "$WORK/oImage" "$IMAGE_PATH"
-echo "[OK] KPM patch applied to $(basename "$IMAGE_PATH")"
+[[ -s "$TMP/oImage" ]] || { echo "[ERROR] patch_linux did not produce oImage; original Image preserved" >&2; exit 1; }
+
+# Keep a copy of the unpatched image for diagnosis, then atomically replace Image.
+cp -f "$IMAGE_PATH" "${IMAGE_PATH}.pre-kpm"
+mv -f "$TMP/oImage" "$IMAGE_PATH"
+echo "[KPM] Applied official KernelPatch patcher to $(basename "$IMAGE_PATH")"

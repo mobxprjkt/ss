@@ -1,8 +1,12 @@
-out/
 KernelSource/
 ClangTool/
+AndroidNDK/
+ndk-unpack/
+SukiSU_KernelPatch_patch/
+susfs4ksu/
 kernel_src/
 prebuilts/
-susfs4ksu/
+out/
+manager_apks/
 *.log
 __pycache__/

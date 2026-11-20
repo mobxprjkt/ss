@@ -1,4 +1,4 @@
-name: Sapphire | GKI 5.15 | SukiSU Ultra
+name: Sapphire | GKI 5.15 | SukiSU Ultra SUSFS KPM
 
 on:
   workflow_dispatch:
@@ -6,9 +6,7 @@ on:
       build_type:
         description: Build channel
         type: choice
-        options:
-          - testing
-          - stable
+        options: [testing, stable]
         default: testing
         required: true
       publish_release:
@@ -26,15 +24,18 @@ concurrency:
 
 jobs:
   build:
-    name: Build GKI + SukiSU + SUSFS + KPM
+    name: Build GKI + SukiSU SUSFS + KPM
     runs-on: ubuntu-24.04
     timeout-minutes: 360
     env:
       BUILD_TYPE: ${{ inputs.build_type }}
       WORK_DIR: ${{ github.workspace }}
       KERNEL_SRC: ${{ github.workspace }}/KernelSource
+      CLANG_DIR: ${{ github.workspace }}/ClangTool
       OUT_DIR: ${{ github.workspace }}/out
       DIST_DIR: ${{ github.workspace }}/out/dist
+      SUKISU_BRANCH: susfs-main
+      KPM_DIR: ${{ github.workspace }}/SukiSU_KernelPatch_patch
       KBUILD_BUILD_USER: mobxprjkt
       KBUILD_BUILD_HOST: github-actions
       TZ: Asia/Tokyo
@@ -47,8 +48,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            bc bison build-essential ccache curl flex git jq libelf-dev \
-            libssl-dev lz4 make pahole patch python3 rsync unzip zip \
+            bc bison build-essential ccache cmake curl flex g++ git jq libelf-dev \
+            libssl-dev lz4 make pahole patch python3 rsync unzip vim-common zip \
             gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi
 
       - name: Restore ccache
@@ -59,14 +60,14 @@ jobs:
           restore-keys: |
             sapphire-gki-ccache-${{ runner.os }}-
 
-      - name: Build kernel
+      - name: Build kernel, SUSFS and KPM
         shell: bash
         run: bash scripts/build-gki.sh
 
       - name: Upload AnyKernel package
         uses: actions/upload-artifact@v4
         with:
-          name: Sapphire-GKI-SukiSU-${{ inputs.build_type }}
+          name: Sapphire-GKI-SukiSU-SUSFS-KPM-${{ inputs.build_type }}
           path: out/release/*.zip
           if-no-files-found: error
           retention-days: 14
@@ -88,14 +89,14 @@ jobs:
       - name: Download build artifact
         uses: actions/download-artifact@v4
         with:
-          name: Sapphire-GKI-SukiSU-${{ inputs.build_type }}
+          name: Sapphire-GKI-SukiSU-SUSFS-KPM-${{ inputs.build_type }}
           path: release
 
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: sapphire-gki-${{ inputs.build_type }}-${{ github.run_number }}
-          name: Sapphire GKI 5.15 | SukiSU Ultra | ${{ inputs.build_type }} #${{ github.run_number }}
+          name: Sapphire GKI 5.15 | SukiSU SUSFS KPM | ${{ inputs.build_type }} #${{ github.run_number }}
           prerelease: ${{ inputs.build_type == 'testing' }}
           generate_release_notes: true
           files: release/*.zip

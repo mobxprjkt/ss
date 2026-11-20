@@ -1,82 +1,31 @@
 #!/usr/bin/env bash
-# Apply SUSFS 5.15 patch, copy support files, and integrate SUSFS init.
+# Validate SUSFS supplied by SukiSU's official susfs-* branch.
+# Do not apply a second external patch to fs/namespace.c.
 set -Eeuo pipefail
-
 : "${KERNEL_SRC:?KERNEL_SRC is required}"
-: "${WORK_DIR:=$(pwd)}"
+: "${SUKISU_BRANCH:=susfs-main}"
 
-SUSFS_URL="${SUSFS_URL:-https://github.com/ndrancs/ShirkNeko_susfs4ksu.git}"
-SUSFS_BRANCH="${SUSFS_BRANCH:-gki-android13-5.15}"
-SUSFS_DIR="${SUSFS_DIR:-$WORK_DIR/susfs4ksu}"
-PATCH_REL="kernel_patches/50_add_susfs_in_gki-android13-5.15.patch"
+KSU_DIR="$KERNEL_SRC/drivers/kernelsu"
+[[ -d "$KSU_DIR" ]] || { echo "[ERROR] drivers/kernelsu is missing; run setup-sukisu first" >&2; exit 1; }
 
-[[ -d "$KERNEL_SRC/KernelSU/kernel" ]] || {
-  echo "[ERROR] SukiSU must be installed before SUSFS" >&2
+case "$SUKISU_BRANCH" in
+  susfs-main|susfs-*) ;;
+  *) echo "[ERROR] SUSFS integration requires a susfs-* SukiSU branch" >&2; exit 1 ;;
+esac
+
+if ! grep -RqsE '^[[:space:]]*config[[:space:]]+KSU_SUSFS([[:space:]]|$)' "$KSU_DIR"; then
+  echo "[ERROR] The selected SukiSU branch does not define CONFIG_KSU_SUSFS" >&2
   exit 1
-}
-
-if [[ ! -d "$SUSFS_DIR/.git" ]]; then
-  git clone --depth=1 --single-branch --branch "$SUSFS_BRANCH" "$SUSFS_URL" "$SUSFS_DIR"
+fi
+if ! grep -Rqs 'susfs_init' "$KSU_DIR"; then
+  echo "[ERROR] The selected SukiSU branch has no SUSFS init integration" >&2
+  exit 1
 fi
 
-PATCH_FILE="$SUSFS_DIR/$PATCH_REL"
-[[ -s "$PATCH_FILE" ]] || { echo "[ERROR] Missing SUSFS patch: $PATCH_FILE" >&2; exit 1; }
-
-python3 "$WORK_DIR/scripts/restore-susfs-context.py" "$PATCH_FILE" "$KERNEL_SRC"
-python3 "$WORK_DIR/scripts/apply-susfs-patch.py" "$PATCH_FILE" "$KERNEL_SRC"
-cd "$KERNEL_SRC"
-
-PAYLOAD="$SUSFS_DIR/kernel_patches"
-[[ -d "$PAYLOAD/fs" && -d "$PAYLOAD/include/linux" ]] || {
-  echo "[ERROR] SUSFS support files missing under $PAYLOAD" >&2
+# Ensure the external SUSFS patch flow is not accidentally enabled.
+if [[ -n "${SUSFS_PATCH_FILE:-}" ]]; then
+  echo "[ERROR] SUSFS_PATCH_FILE is unsupported with susfs-*; do not double-patch the kernel" >&2
   exit 1
-}
-mkdir -p fs include/linux
-cp -a "$PAYLOAD/fs/." fs/
-cp -a "$PAYLOAD/include/linux/." include/linux/
+fi
 
-KSU_INIT="KernelSU/kernel/ksu.c"
-[[ -f "$KSU_INIT" ]] || KSU_INIT="KernelSU/kernel/core/init.c"
-[[ -f "$KSU_INIT" ]] || { echo "[ERROR] Cannot locate SukiSU init source" >&2; exit 1; }
-
-python3 - "$KSU_INIT" <<'PY'
-from pathlib import Path
-import re
-import sys
-
-path = Path(sys.argv[1])
-source = path.read_text()
-
-if re.search(r'\bsusfs_init\s*\(', source):
-    print(f"[SUSFS] Init already integrated in {path}")
-    raise SystemExit(0)
-
-include = "#include <linux/susfs.h>"
-if include not in source:
-    match = re.search(r"(?m)^#include <linux/[^>]+>\s*$", source)
-    if not match:
-        raise SystemExit(f"[ERROR] Cannot find include insertion point in {path}")
-    source = source[:match.end()] + "\n" + include + source[match.end():]
-
-block = "\n#ifdef CONFIG_KSU_SUSFS\n\tsusfs_init();\n#endif\n"
-if "ksu_core_init();" in source:
-    source = source.replace("ksu_core_init();", "ksu_core_init();" + block, 1)
-else:
-    function = re.search(r"int\s+__init\s+kernelsu_init\s*\([^)]*\)\s*\{", source)
-    if not function:
-        raise SystemExit(f"[ERROR] Unsupported SukiSU init layout in {path}")
-    tail = source[function.end():]
-    declaration = re.search(
-        r"\n[ \t]*(?:int|bool|long|unsigned\s+\w+|struct\s+\w+\s*\*)\s+\w+[^;]*;",
-        tail,
-    )
-    if not declaration:
-        raise SystemExit(f"[ERROR] Cannot locate local declaration in kernelsu_init() in {path}")
-    position = function.end() + declaration.end()
-    source = source[:position] + block + source[position:]
-
-path.write_text(source)
-print(f"[SUSFS] Init integrated in {path}")
-PY
-
-echo "[SUSFS] Integration complete ($SUSFS_BRANCH)"
+echo "[SUSFS] Integrated SUSFS source verified in upstream SukiSU branch: $SUKISU_BRANCH"
