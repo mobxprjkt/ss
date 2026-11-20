@@ -19,7 +19,6 @@ on:
 
 permissions:
   contents: write
-  actions: read
 
 concurrency:
   group: sapphire-gki-${{ inputs.build_type }}
@@ -33,7 +32,9 @@ jobs:
     env:
       BUILD_TYPE: ${{ inputs.build_type }}
       WORK_DIR: ${{ github.workspace }}
-      KERNEL_SRC: ${{ github.workspace }}/kernel_src
+      KERNEL_SRC: ${{ github.workspace }}/KernelSource
+      OUT_DIR: ${{ github.workspace }}/out
+      DIST_DIR: ${{ github.workspace }}/out/dist
       KBUILD_BUILD_USER: mobxprjkt
       KBUILD_BUILD_HOST: github-actions
       TZ: Asia/Tokyo
@@ -47,14 +48,14 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             bc bison build-essential ccache curl flex git jq libelf-dev \
-            libssl-dev lz4 make pahole python3 rsync unzip zip \
+            libssl-dev lz4 make pahole patch python3 rsync unzip zip \
             gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi
 
       - name: Restore ccache
         uses: actions/cache@v4
         with:
           path: ~/.ccache
-          key: sapphire-gki-ccache-${{ runner.os }}-${{ hashFiles('scripts/build-gki.sh') }}-${{ inputs.build_type }}
+          key: sapphire-gki-ccache-${{ runner.os }}-${{ hashFiles('scripts/*.sh') }}-${{ inputs.build_type }}
           restore-keys: |
             sapphire-gki-ccache-${{ runner.os }}-
 
@@ -67,6 +68,14 @@ jobs:
         with:
           name: Sapphire-GKI-SukiSU-${{ inputs.build_type }}
           path: out/release/*.zip
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload build information
+        uses: actions/upload-artifact@v4
+        with:
+          name: Sapphire-GKI-Build-Info-${{ inputs.build_type }}
+          path: out/release/build-info.txt
           if-no-files-found: error
           retention-days: 14
 

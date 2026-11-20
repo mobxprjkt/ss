@@ -1,4 +1,8 @@
 out/
+KernelSource/
+ClangTool/
 kernel_src/
 prebuilts/
+susfs4ksu/
 *.log
+__pycache__/
