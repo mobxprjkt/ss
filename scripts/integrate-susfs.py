@@ -100,11 +100,12 @@ def copy_payload(susfs: Path, kernel: Path) -> None:
 
 def verify_sukisu(ksu: Path) -> None:
     source = ksu / "kernel"
-    if not (source / "Kconfig").is_file() or not (source / "ksu.c").is_file():
-        raise RuntimeError(f"Unexpected SukiSU Ultra source layout: {source}")
-    if "susfs_init();" not in (source / "ksu.c").read_text(errors="replace"):
-        raise RuntimeError("SukiSU Ultra source does not call susfs_init(); refusing mismatched branch")
+    if not (source / "Kconfig").is_file():
+        raise RuntimeError(f"Unexpected SukiSU Ultra source layout: missing {source / 'Kconfig'}")
     files = list(source.rglob("*.c")) + list(source.rglob("*.h"))
+    if not any(re.search(r"\bsusfs_init\s*\(", p.read_text(errors="ignore"))
+               for p in files if p.suffix == ".c"):
+        raise RuntimeError("SukiSU Ultra source does not call susfs_init(); refusing mismatched branch")
     contents = "\n".join(p.read_text(errors="ignore") for p in files)
     missing = [symbol for symbol in REQUIRED_SYMBOLS if symbol not in contents]
     if missing:

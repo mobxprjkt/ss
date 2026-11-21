@@ -1,0 +1,108 @@
+name: Sapphire | GKI 5.15 | SukiSU Ultra SUSFS KPM
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: Build channel
+        type: choice
+        options: [testing, stable]
+        default: testing
+        required: true
+      publish_release:
+        description: Publish the ZIP as a GitHub Release
+        type: boolean
+        default: true
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sapphire-gki-${{ inputs.build_type }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build GKI + SukiSU Ultra + SUSFS + KPM
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    env:
+      BUILD_TYPE: ${{ inputs.build_type }}
+      WORK_DIR: ${{ github.workspace }}
+      KERNEL_SRC: ${{ github.workspace }}/KernelSource
+      CLANG_DIR: ${{ github.workspace }}/ClangTool
+      OUT_DIR: ${{ github.workspace }}/out
+      DIST_DIR: ${{ github.workspace }}/out/dist
+      SUKISU_REPO: https://github.com/SukiSU-Ultra/SukiSU-Ultra.git
+      SUKISU_REF: builtin
+      SUSFS_URL: https://github.com/ndrancs/ShirkNeko_susfs4ksu.git
+      SUSFS_BRANCH: gki-android13-5.15
+      SUSFS_COMMIT: 20d4ce65059bd99c2cf41cbde1ac90608ebdf16e
+      KPM_REPO: https://github.com/SukiSU-Ultra/SukiSU_KernelPatch_patch.git
+      KPM_REF: main
+      KPM_DIR: ${{ github.workspace }}/SukiSU_KernelPatch_patch
+      KBUILD_BUILD_USER: mobxprjkt
+      KBUILD_BUILD_HOST: github-actions
+      TZ: Asia/Tokyo
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            bc bison build-essential ccache cmake curl flex g++ git jq libelf-dev \
+            libssl-dev lz4 make pahole patch python3 rsync unzip vim-common zip \
+            gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi
+
+      - name: Restore ccache
+        uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: sapphire-gki-ccache-${{ runner.os }}-${{ hashFiles('scripts/*.sh', 'scripts/*.py') }}-${{ inputs.build_type }}
+          restore-keys: |
+            sapphire-gki-ccache-${{ runner.os }}-
+
+      - name: Build kernel, SUSFS and KPM
+        shell: bash
+        run: bash scripts/build-gki.sh
+
+      - name: Upload AnyKernel package
+        uses: actions/upload-artifact@v4
+        with:
+          name: Sapphire-GKI-SukiSU-Ultra-SUSFS-KPM-${{ inputs.build_type }}
+          path: out/release/*.zip
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload build information
+        uses: actions/upload-artifact@v4
+        with:
+          name: Sapphire-GKI-Build-Info-${{ inputs.build_type }}
+          path: out/release/build-info.txt
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    name: Publish GitHub Release
+    if: inputs.publish_release && success()
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: Sapphire-GKI-SukiSU-Ultra-SUSFS-KPM-${{ inputs.build_type }}
+          path: release
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: sapphire-gki-${{ inputs.build_type }}-${{ github.run_number }}
+          name: Sapphire GKI 5.15 | SukiSU Ultra SUSFS KPM | ${{ inputs.build_type }} #${{ github.run_number }}
+          prerelease: ${{ inputs.build_type == 'testing' }}
+          generate_release_notes: true
+          files: release/*.zip

@@ -14,9 +14,9 @@ Standalone GitHub Actions workflow for Xiaomi Redmi Note 13 4G (`sapphire` / `sa
 
 ## SukiSU Ultra integration
 
-This package uses `SukiSU-Ultra/SukiSU-Ultra`, branch `builtin`. The official integration guide documents `builtin` as the built-in integration branch and states that it carries the SUSFS options and `CONFIG_KPM`. The setup wrapper resolves the branch to an exact commit before invoking the upstream setup script, then verifies the final `KernelSU` checkout to prevent silent branch fallback.
+This package uses `SukiSU-Ultra/SukiSU-Ultra`, branch `builtin`. The official integration guide documents `builtin` as the built-in integration branch and states that it carries the SUSFS options and `CONFIG_KPM`. The setup wrapper resolves the branch to an exact commit before invoking the upstream setup script, then verifies the final `KernelSU` checkout to prevent silent branch fallback. It also locates the SUSFS initialization call recursively, avoiding a false failure when Ultra stores it outside `kernel/ksu.c`.
 
-The Ultra `builtin` Kconfig declares `CONFIG_KSU_SUSFS` and `CONFIG_KPM`; its `ksu.c` calls `susfs_init()` when SUSFS is enabled. The configuration stage enables `CONFIG_KSU`, `CONFIG_KPM`, `CONFIG_KALLSYMS`, `CONFIG_KALLSYMS_ALL`, `CONFIG_KSU_SUSFS`, and all `CONFIG_KSU_SUSFS*` options actually declared by that checkout. It does not force a branch-specific inline-hook symbol that is absent from the official Ultra `builtin` Kconfig.
+The Ultra `builtin` Kconfig declares `CONFIG_KSU_SUSFS` and `CONFIG_KPM`; the setup checks for `susfs_init()` across the kernel C sources instead of assuming a fixed `ksu.c` path (the initialization file varies between source revisions). The configuration stage enables `CONFIG_KSU`, `CONFIG_KPM`, `CONFIG_KALLSYMS`, `CONFIG_KALLSYMS_ALL`, `CONFIG_KSU_SUSFS`, and all `CONFIG_KSU_SUSFS*` options actually declared by that checkout. It does not force a branch-specific inline-hook symbol that is absent from the official Ultra `builtin` Kconfig.
 
 ## SUSFS and KPM
 

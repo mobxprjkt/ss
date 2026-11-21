@@ -52,9 +52,13 @@ for token in 'config KSU_SUSFS' 'config KPM'; do
     echo "[ERROR] SukiSU Ultra source is missing $token" >&2; exit 1;
   }
 done
-grep -q 'susfs_init();' "$KSU_DIR/ksu.c" || {
-  echo "[ERROR] SukiSU Ultra branch does not initialize SUSFS" >&2; exit 1;
+# SukiSU Ultra's builtin tree places initialization in core/init.c on some
+# revisions; do not assume the legacy kernel/ksu.c path.
+SUSFS_INIT_FILE="$(grep -RIlE 'susfs_init[[:space:]]*\(' "$KSU_DIR" --include='*.c' --include='*.h' | head -n1 || true)"
+[[ -n "$SUSFS_INIT_FILE" ]] || {
+  echo "[ERROR] SukiSU Ultra source has no susfs_init() call in kernel C/H files" >&2; exit 1;
 }
+echo "[SukiSU Ultra] SUSFS init found in ${SUSFS_INIT_FILE#"$KSU_DIR/"}"
 
 printf 'SUKISU_COMMIT=%s\n' "$ACTUAL" > "$WORK_DIR/sukisu-build-info.env"
 echo "[SukiSU Ultra] Verified branch=$SUKISU_REF commit=$ACTUAL (SUSFS + KPM)"

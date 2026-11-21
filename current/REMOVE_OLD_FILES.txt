@@ -1,0 +1,7 @@
+Optional cleanup of obsolete files from previous attempts (not included or used here):
+- scripts/apply-update.sh
+- scripts/repair-ss.sh
+- scripts/restore-susfs-context.py
+- scripts/apply-susfs-patch.py
+
+The current workflow is standalone and uses official SukiSU Ultra.
