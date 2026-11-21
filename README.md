@@ -1,41 +1,49 @@
 # Sapphire GKI 5.15 — SukiSU Ultra + SUSFS + KPM
 
-Standalone GitHub Actions build scaffold for Xiaomi Redmi Note 13 4G (`sapphire` / `sapphiren`). No reusable workflow dependency on `mobxprjkt/Kernul`.
+Standalone GitHub Actions workflow for Xiaomi Redmi Note 13 4G (`sapphire` / `sapphiren`). It builds Android common GKI 5.15, integrates the official SukiSU Ultra `builtin` branch, applies the Android 13 / 5.15 SUSFS kernel patch, enables KPM, and packages an AnyKernel3 ZIP. It does not call a reusable workflow in `mobxprjkt/Kernul` and does not use `apply-update.sh` or `repair-ss.sh`.
 
-## Layout
+## Source layout
 
-- `KernelSource/` — Android common kernel source (`android13-5.15-lts`)
+- `KernelSource/` — Android common kernel source, `android13-5.15-lts`
 - `ClangTool/` — Clang archive matching `CLANG_VERSION` in the kernel source
-- `SukiSU_KernelPatch_patch/` — official SukiSU KernelPatch source used to build `patch_linux`
+- `KernelSource/KernelSU/` — official SukiSU Ultra `builtin` branch
+- `susfs4ksu/` — SUSFS 5.15 source and patch
+- `SukiSU_KernelPatch_patch/` — official SukiSU Ultra KPM patcher source
+- `AndroidNDK/` — Android NDK r29 used to build `patch_linux`
 - `out/` — kernel output and release package
 
-## Integration strategy
+## SukiSU Ultra integration
 
-1. SukiSU is installed using the official `susfs-main` branch through upstream `kernel/setup.sh`.
-2. SUSFS is provided by that SukiSU branch. The workflow deliberately does **not** apply the separate `susfs4ksu` patch, does not relocate `fs/namespace.c` hunks, and does not create fake trace-hook headers. This avoids applying two different SUSFS integration mechanisms to the same kernel tree.
-3. `setup-config.sh` discovers actual `CONFIG_KSU_SUSFS*` symbols in the selected upstream Kconfig and enables only symbols that exist. It verifies `CONFIG_KSU=y`, `CONFIG_KSU_SUSFS=y`, and `CONFIG_KPM=y` after `olddefconfig`.
-4. KPM patcher is built from `SukiSU-Ultra/SukiSU_KernelPatch_patch` using its upstream `build.sh`. The CI wrapper only replaces the maintainer-specific hard-coded NDK path with the downloaded Android NDK r29 path. The NDK archive is SHA-1 checked before extraction.
-5. The generated `patch_linux` is run against a temporary copy of `Image`; the original image is retained as `Image.pre-kpm` and only replaced if `oImage` is produced.
+This package uses `SukiSU-Ultra/SukiSU-Ultra`, branch `builtin`. The official integration guide documents `builtin` as the built-in integration branch and states that it carries the SUSFS options and `CONFIG_KPM`. The setup wrapper resolves the branch to an exact commit before invoking the upstream setup script, then verifies the final `KernelSU` checkout to prevent silent branch fallback.
+
+The Ultra `builtin` Kconfig declares `CONFIG_KSU_SUSFS` and `CONFIG_KPM`; its `ksu.c` calls `susfs_init()` when SUSFS is enabled. The configuration stage enables `CONFIG_KSU`, `CONFIG_KPM`, `CONFIG_KALLSYMS`, `CONFIG_KALLSYMS_ALL`, `CONFIG_KSU_SUSFS`, and all `CONFIG_KSU_SUSFS*` options actually declared by that checkout. It does not force a branch-specific inline-hook symbol that is absent from the official Ultra `builtin` Kconfig.
+
+## SUSFS and KPM
+
+SUSFS kernel-side integration uses `ndrancs/ShirkNeko_susfs4ksu`, branch `gki-android13-5.15`, pinned to commit `20d4ce65059bd99c2cf41cbde1ac90608ebdf16e`. The integration script checks the expected SukiSU Ultra SUSFS initialization and hook symbols, omits legacy `devpts` and `reboot` patch sections whose callback support is not part of this selected source layout, dry-runs the remaining patch before applying it, and relocates the `fs/namespace.c` declarations when the ACK include context differs.
+
+KPM is built from the official `SukiSU-Ultra/SukiSU_KernelPatch_patch` repository. The builder resolves and records the exact `main` commit used, builds the patcher with Android NDK r29, and applies `patch_linux` to a temporary copy of `Image`. The unpatched image is preserved as `Image.pre-kpm` if the patcher succeeds.
 
 ## Run
 
 Open **Actions → Sapphire | GKI 5.15 | SukiSU Ultra SUSFS KPM → Run workflow**. Select `testing` or `stable`.
 
-## Important compatibility warning
+## Compatibility warning
 
-This workflow builds Android common GKI `android13-5.15-lts`, not the Xiaomi Sapphire vendor kernel. It does not build the device-specific DTBO, vendor modules, vendor_boot, or vendor kernel changes. The AnyKernel3 codename check does not establish device/ROM boot compatibility. Do not flash without a known-good recovery/fastboot path.
+This workflow builds Android common GKI `android13-5.15-lts`, not the Xiaomi Sapphire vendor kernel. It does not build device-specific DTBO, vendor modules, vendor_boot, or Xiaomi vendor kernel changes. An AnyKernel3 codename check alone does not prove boot compatibility. Do not flash this package on a daily-use device without a known-good recovery/fastboot path and a matching device kernel baseline.
 
 ## Validation status
 
-This ZIP is checked for shell syntax, Python syntax (if present), archive integrity, and internal path consistency. The full Android kernel compile, the upstream KernelPatch toolchain build, the exact `susfs-main` branch's compatibility with this Android common commit, and device boot have **not** been executed in this environment. GitHub Actions must confirm those stages; a successful compile still does not prove bootability.
+The ZIP is statically checked for Bash syntax, Python syntax, workflow metadata, ZIP integrity, and absence of updater/repair scripts. The full kernel compile, SUSFS patch dry-run against the exact ACK checkout, KPM toolchain build, and device boot test have not been run here. GitHub Actions must confirm those stages. A successful compile does not prove device bootability.
 
-## Upstream sources
+## Upstream references
 
-- SukiSU Ultra: https://github.com/SukiSU-Ultra/SukiSU-Ultra
-- SukiSU KernelPatch patch: https://github.com/SukiSU-Ultra/SukiSU_KernelPatch_patch
-- Android common kernel: https://android.googlesource.com/kernel/common
-- Android NDK r29: https://github.com/android/ndk/releases/tag/r29
+- SukiSU Ultra: `https://github.com/SukiSU-Ultra/SukiSU-Ultra` — `builtin`
+- SukiSU Ultra integration guide: `https://github.com/SukiSU-Ultra/SukiSU-Ultra/blob/main/docs/guide/how-to-integrate.md`
+- SukiSU Ultra KPM patcher: `https://github.com/SukiSU-Ultra/SukiSU_KernelPatch_patch` — `main`
+- SUSFS source: `https://github.com/ndrancs/ShirkNeko_susfs4ksu` — `gki-android13-5.15`, `20d4ce65059bd99c2cf41cbde1ac90608ebdf16e`
+- Android common kernel: `https://android.googlesource.com/kernel/common`, branch `android13-5.15-lts`
 
-## Files to remove from an older checkout
+## Replacing older code
 
-After extracting this ZIP over the repository, delete the obsolete patch-relocation helpers listed in `REMOVE_OLD_FILES.txt`. They are intentionally not included in this package because the `susfs-main` branch supplies SUSFS directly.
+Extract this ZIP over the repository root and overwrite files with the same paths. Remove obsolete `scripts/apply-update.sh`, `scripts/repair-ss.sh`, `scripts/restore-susfs-context.py`, and old `scripts/apply-susfs-patch.py` if they are still present from earlier attempts. They are not used by this workflow.

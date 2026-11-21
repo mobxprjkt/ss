@@ -2,6 +2,7 @@
 # Compile Android common GKI Image and modules with the pinned Clang toolchain.
 set -Eeuo pipefail
 
+: "${WORK_DIR:=$(pwd)}"
 : "${KERNEL_SRC:?KERNEL_SRC is required}"
 : "${OUT_DIR:?OUT_DIR is required}"
 : "${DIST_DIR:?DIST_DIR is required}"
